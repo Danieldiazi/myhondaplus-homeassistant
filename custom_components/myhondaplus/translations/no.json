@@ -88,6 +88,9 @@
     },
     "car_finder_failed": {
       "message": "Bilfinner-forespørsel mislyktes: kjøretøyet svarte ikke."
+    },
+    "geofence_location_unknown": {
+      "message": "Posisjon ukjent"
     }
   },
   "entity": {
@@ -227,6 +230,15 @@
       },
       "climate_schedule": {
         "name": "Klimaplan"
+      },
+      "geofence": {
+        "name": "Geofence",
+        "state": {
+          "inactive": "Ikke aktiv",
+          "active": "Aktiv",
+          "activating": "Aktiverer (dette kan ta inntil 2 minutter)",
+          "deactivating": "Deaktiverer (dette kan ta inntil 2 minutter)"
+        }
       }
     },
     "device_tracker": {

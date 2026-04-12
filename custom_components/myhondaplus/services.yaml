@@ -105,3 +105,52 @@ car_finder_location:
       selector:
         device:
           integration: myhondaplus
+
+set_geofence:
+  name: Set geofence
+  description: >
+    Create or update the vehicle's geofence, centred on the car's current
+    location. Choose a radius preset in kilometres or miles.
+
+  fields:
+    device:
+      name: Vehicle
+      description: Select the My Honda+ vehicle to control.
+      required: true
+      selector:
+        device:
+          integration: myhondaplus
+    radius:
+      name: Radius
+      description: >
+        Geofence radius. Presets are offered in both kilometres and miles;
+        miles are converted to kilometres before sending.
+      required: true
+      default: "1 km"
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - "1 km"
+            - "5 km"
+            - "10 km"
+            - "20 km"
+            - "30 km"
+            - "0.5 mi"
+            - "1 mi"
+            - "5 mi"
+            - "10 mi"
+            - "20 mi"
+
+clear_geofence:
+  name: Clear geofence
+  description: Delete the vehicle's geofence zone.
+
+  fields:
+    device:
+      name: Vehicle
+      description: Select the My Honda+ vehicle to control.
+      required: true
+      selector:
+        device:
+          integration: myhondaplus

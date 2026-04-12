@@ -88,6 +88,9 @@
     },
     "car_finder_failed": {
       "message": "Solicitud del buscador de coche fallida: el vehículo no respondió."
+    },
+    "geofence_location_unknown": {
+      "message": "Ubicación desconocida"
     }
   },
   "entity": {
@@ -227,6 +230,15 @@
       },
       "climate_schedule": {
         "name": "Programación de climatización"
+      },
+      "geofence": {
+        "name": "Geofence",
+        "state": {
+          "inactive": "No activa",
+          "active": "Activa",
+          "activating": "Activación (puede tardar hasta 2 minutos)",
+          "deactivating": "Desactivación (puede tardar hasta 2 minutos)"
+        }
       }
     },
     "device_tracker": {

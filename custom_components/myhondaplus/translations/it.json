@@ -88,6 +88,9 @@
     },
     "car_finder_failed": {
       "message": "Richiesta del localizzatore auto fallita: il veicolo non ha risposto."
+    },
+    "geofence_location_unknown": {
+      "message": "Posizione sconosciuta"
     }
   },
   "entity": {
@@ -227,6 +230,15 @@
       },
       "climate_schedule": {
         "name": "Programmazione climatizzatore"
+      },
+      "geofence": {
+        "name": "Geofence",
+        "state": {
+          "inactive": "Non attivo",
+          "active": "Attivo",
+          "activating": "Attivazione (questa operazione può richiedere fino a 2 minuti)",
+          "deactivating": "Disattivazione (questa operazione può richiedere fino a 2 minuti)"
+        }
       }
     },
     "device_tracker": {

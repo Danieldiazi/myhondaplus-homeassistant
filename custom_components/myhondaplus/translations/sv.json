@@ -88,6 +88,9 @@
     },
     "car_finder_failed": {
       "message": "Bilsökare-förfrågan misslyckades: fordonet svarade inte."
+    },
+    "geofence_location_unknown": {
+      "message": "Position okänd"
     }
   },
   "entity": {
@@ -227,6 +230,15 @@
       },
       "climate_schedule": {
         "name": "Klimatschema"
+      },
+      "geofence": {
+        "name": "Geofence",
+        "state": {
+          "inactive": "Inte aktiv",
+          "active": "Aktiv",
+          "activating": "Aktivering (det här kan ta upp till 2 minuter)",
+          "deactivating": "Avaktivering (det här kan ta upp till 2 minuter)"
+        }
       }
     },
     "device_tracker": {

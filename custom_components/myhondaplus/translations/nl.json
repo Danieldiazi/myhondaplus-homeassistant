@@ -88,6 +88,9 @@
     },
     "car_finder_failed": {
       "message": "Verzoek aan autozoeker mislukt: het voertuig reageerde niet."
+    },
+    "geofence_location_unknown": {
+      "message": "Locatie onbekend"
     }
   },
   "entity": {
@@ -227,6 +230,15 @@
       },
       "climate_schedule": {
         "name": "Aircoschema"
+      },
+      "geofence": {
+        "name": "Geofence",
+        "state": {
+          "inactive": "Niet actief",
+          "active": "Actief",
+          "activating": "Activeren (dit kan tot 2 minuten duren)",
+          "deactivating": "Deactiveren (dit kan tot 2 minuten duren)"
+        }
       }
     },
     "device_tracker": {

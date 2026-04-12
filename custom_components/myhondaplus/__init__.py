@@ -18,7 +18,10 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import selector
 from homeassistant.helpers.event import async_call_later
-from pymyhondaplus.api import HondaAPI, Vehicle
+from pymyhondaplus.api import (
+    HondaAPI,
+    Vehicle,
+)
 
 from .const import (
     CONF_ACCESS_TOKEN,
@@ -58,6 +61,8 @@ SERVICE_SET_CHARGE_SCHEDULE = "set_charge_schedule"
 SERVICE_SET_CLIMATE_SCHEDULE = "set_climate_schedule"
 SERVICE_CLIMATE_ON = "climate_on"
 SERVICE_CAR_FINDER_LOCATION = "car_finder_location"
+SERVICE_SET_GEOFENCE = "set_geofence"
+SERVICE_CLEAR_GEOFENCE = "clear_geofence"
 ATTR_DEVICE = "device"
 
 
@@ -132,10 +137,34 @@ SERVICE_CLIMATE_SCHEDULE_FIELDS = {
 
 SERVICE_CAR_FINDER_LOCATION_FIELDS = dict(BASE_SERVICE_FIELDS)
 
+# Fixed radius presets mirroring the official app: a kilometre list and a
+# miles list (converted to km). The geofence is always centred on the car,
+# so radius is the only geometry the user chooses.
+_KM_PER_MILE = 1.609344
+_GEOFENCE_RADII_KM = (1.0, 5.0, 10.0, 20.0, 30.0)
+_GEOFENCE_RADII_MI = (0.5, 1.0, 5.0, 10.0, 20.0)
+_GEOFENCE_RADIUS_KM_BY_LABEL = {
+    **{f"{km:g} km": km for km in _GEOFENCE_RADII_KM},
+    **{f"{mi:g} mi": round(mi * _KM_PER_MILE, 1) for mi in _GEOFENCE_RADII_MI},
+}
+_DEFAULT_GEOFENCE_RADIUS_LABEL = "1 km"
+
+SERVICE_SET_GEOFENCE_FIELDS = {
+    **BASE_SERVICE_FIELDS,
+    vol.Optional(
+        "radius", default=_DEFAULT_GEOFENCE_RADIUS_LABEL
+    ): vol.In(list(_GEOFENCE_RADIUS_KM_BY_LABEL)),
+}
+SERVICE_CLEAR_GEOFENCE_FIELDS = {
+    **BASE_SERVICE_FIELDS,
+}
+
 SERVICE_CLIMATE_ON_SCHEMA = vol.Schema(SERVICE_CLIMATE_ON_FIELDS)
 SERVICE_CHARGE_SCHEDULE_SCHEMA = vol.Schema(SERVICE_CHARGE_SCHEDULE_FIELDS)
 SERVICE_CLIMATE_SCHEDULE_SCHEMA = vol.Schema(SERVICE_CLIMATE_SCHEDULE_FIELDS)
 SERVICE_CAR_FINDER_LOCATION_SCHEMA = vol.Schema(SERVICE_CAR_FINDER_LOCATION_FIELDS)
+SERVICE_SET_GEOFENCE_SCHEMA = vol.Schema(SERVICE_SET_GEOFENCE_FIELDS)
+SERVICE_CLEAR_GEOFENCE_SCHEMA = vol.Schema(SERVICE_CLEAR_GEOFENCE_FIELDS)
 
 
 class _ConfigEntryTokenStorage:
@@ -344,16 +373,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: MyHondaPlusConfigEntry) 
         vehicle_name = v.get(CONF_VEHICLE_NAME, "")
         fuel_type = v.get(CONF_FUEL_TYPE, "")
 
+        api_vehicle = api_vehicles.get(vin)
+        geofence_available = bool(
+            api_vehicle.capabilities.geo_fence if api_vehicle else False
+        )
+
         coordinator = HondaDataUpdateCoordinator(
             hass,
             entry,
             api,
             vin,
             vehicle_name,
+            geofence_enabled=geofence_available,
         )
         await coordinator.async_config_entry_first_refresh()
 
-        api_vehicle = api_vehicles.get(vin)
         journey_history_available = (
             api_vehicle.capabilities.journey_history if api_vehicle else True
         )
@@ -675,6 +709,78 @@ def _register_services(hass: HomeAssistant) -> None:
                 )
             )
 
+    def _schedule_geofence_refreshes(coordinator) -> None:
+        """Schedule three follow-up refreshes after a geofence command.
+
+        Activation/deactivation can take up to ~7 minutes server-side.
+        Three staggered probes at 30s/90s/240s pull the latest state without
+        blocking the service call.
+        """
+
+        @callback
+        def _refresh(_now):
+            hass.async_create_task(coordinator.async_request_refresh())
+
+        for delay in (30, 90, 240):
+            async_call_later(hass, delay, _refresh)
+
+    async def handle_set_geofence(call: ServiceCall) -> None:
+        coordinator = _get_coordinator(hass, call)
+        if not coordinator.geofence_enabled:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="capability_not_supported",
+            )
+
+        # The geofence is always centred on the car's current location,
+        # matching the official app. Anyone needing an arbitrary centre uses
+        # the CLI.
+        lat = coordinator.data.latitude
+        lon = coordinator.data.longitude
+        if not lat or not lon:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="geofence_location_unknown",
+            )
+
+        radius = _GEOFENCE_RADIUS_KM_BY_LABEL[
+            call.data.get("radius", _DEFAULT_GEOFENCE_RADIUS_LABEL)
+        ]
+
+        result = await coordinator.async_send_command(
+            coordinator.api.set_geofence,
+            coordinator.vin,
+            float(lat),
+            float(lon),
+            radius,
+            "Geofence",
+        )
+        coordinator.async_set_updated_data(
+            replace(coordinator.data, geofence=result)
+        )
+        _schedule_geofence_refreshes(coordinator)
+
+    async def handle_clear_geofence(call: ServiceCall) -> None:
+        coordinator = _get_coordinator(hass, call)
+        if not coordinator.geofence_enabled:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="capability_not_supported",
+            )
+        await coordinator.async_send_command(
+            coordinator.api.clear_geofence,
+            coordinator.vin,
+        )
+        existing = coordinator.data.geofence
+        if existing is not None:
+            coordinator.async_set_updated_data(
+                replace(
+                    coordinator.data,
+                    geofence=replace(existing, waiting_deactivate=True),
+                )
+            )
+        _schedule_geofence_refreshes(coordinator)
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_SET_CHARGE_SCHEDULE,
@@ -692,6 +798,18 @@ def _register_services(hass: HomeAssistant) -> None:
         SERVICE_CLIMATE_ON,
         handle_climate_on,
         schema=SERVICE_CLIMATE_ON_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_GEOFENCE,
+        handle_set_geofence,
+        schema=SERVICE_SET_GEOFENCE_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CLEAR_GEOFENCE,
+        handle_clear_geofence,
+        schema=SERVICE_CLEAR_GEOFENCE_SCHEMA,
     )
 
     async def handle_car_finder_location(call: ServiceCall) -> ServiceResponse:
