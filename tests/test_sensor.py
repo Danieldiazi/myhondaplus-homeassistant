@@ -171,3 +171,11 @@ class TestHondaTripSensor:
     def test_distance_unit_dynamic(self, mock_trip_coordinator):
         sensor = make_trip_sensor(mock_trip_coordinator, "total_distance")
         assert sensor.native_unit_of_measurement == "km"
+
+    def test_distance_unit_dynamic_miles(self, mock_trip_coordinator):
+        """Trip data is a dict, so distance_unit must be read via .get(), not getattr()."""
+        mock_trip_coordinator.data = dict(mock_trip_coordinator.data,
+                                          distance_unit="miles",
+                                          speed_unit="miles/h")
+        sensor = make_trip_sensor(mock_trip_coordinator, "total_distance")
+        assert sensor.native_unit_of_measurement == "mi"

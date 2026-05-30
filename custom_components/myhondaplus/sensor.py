@@ -294,14 +294,23 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
+def _read_unit(data, key: str, default: str) -> str:
+    """Read a unit field from either a DashboardData dataclass or a trip dict."""
+    if hasattr(data, key):
+        return getattr(data, key)
+    if isinstance(data, dict):
+        return data.get(key, default)
+    return default
+
+
 def _resolve_unit(data, description: HondaSensorDescription) -> str | None:
     """Resolve the unit of measurement from coordinator data."""
     if not description.dynamic_unit or not data:
         return description.native_unit_of_measurement
     if description.dynamic_unit == "temp":
-        temp_unit = getattr(data, "temp_unit", "c")
+        temp_unit = _read_unit(data, "temp_unit", "c")
         return TEMP_UNIT_MAP.get(str(temp_unit).lower(), TEMP_UNIT_MAP["c"])
-    distance_unit = data.distance_unit if hasattr(data, "distance_unit") else "km"
+    distance_unit = _read_unit(data, "distance_unit", "km")
     units = UNIT_MAP.get(distance_unit, UNIT_MAP["km"])
     return units.get(description.dynamic_unit)
 
