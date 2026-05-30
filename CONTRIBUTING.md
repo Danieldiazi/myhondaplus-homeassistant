@@ -77,7 +77,7 @@ When updating a translation on either side, run the drift test. If a key crosses
 
 - `to_bool()` in `entity.py` handles API values that arrive as strings (`"true"`/`"false"`), ints, or actual bools.
 - Enum sensors must list all possible values in `options`. The library normalizes values; this integration does not re-normalize.
-- Dynamic units (km/miles, km/h/mph, C/F) come from `data.distance_unit` via `UNIT_MAP` in `sensor.py`.
+- Dynamic units in `sensor.py`: distance and speed (km/miles, km/h/mph) come from `data.distance_unit` via `UNIT_MAP`; temperature (°C/°F) comes from `data.temp_unit` via `TEMP_UNIT_MAP`. The two are independent because some locales mix metric and imperial (UK uses miles + °C).
 - Optimistic updates: entity commands mutate `coordinator.data` before API confirmation, revert on failure.
 - Entity gating policy:
   - Read-only entities (sensor, binary_sensor, device_tracker) are **not** gated on `VehicleCapabilities`. They check `_sensor_enabled()` against `ev_only` (filtered by vehicle `fuel_type`, where `"E"`=BEV and `"X"`=PHEV) and `ui_hide` flags. This is so dashboard data stays visible when Honda's capability map flips to all-`notSupported` (e.g. lapsed subscription) but the data still flows.

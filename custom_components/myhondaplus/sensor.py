@@ -23,8 +23,13 @@ from .entity import MyHondaPlusEntity
 PARALLEL_UPDATES = 0
 
 UNIT_MAP = {
-    "km": {"distance": "km", "speed": "km/h", "temp": "°C"},
-    "miles": {"distance": "mi", "speed": "mph", "temp": "°F"},
+    "km": {"distance": "km", "speed": "km/h"},
+    "miles": {"distance": "mi", "speed": "mph"},
+}
+
+TEMP_UNIT_MAP = {
+    "c": "°C",
+    "f": "°F",
 }
 
 EV_FUEL_TYPES = frozenset({"E", "X"})
@@ -293,6 +298,9 @@ def _resolve_unit(data, description: HondaSensorDescription) -> str | None:
     """Resolve the unit of measurement from coordinator data."""
     if not description.dynamic_unit or not data:
         return description.native_unit_of_measurement
+    if description.dynamic_unit == "temp":
+        temp_unit = getattr(data, "temp_unit", "c")
+        return TEMP_UNIT_MAP.get(str(temp_unit).lower(), TEMP_UNIT_MAP["c"])
     distance_unit = data.distance_unit if hasattr(data, "distance_unit") else "km"
     units = UNIT_MAP.get(distance_unit, UNIT_MAP["km"])
     return units.get(description.dynamic_unit)

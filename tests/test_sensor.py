@@ -93,8 +93,15 @@ class TestHondaSensor:
         sensor = make_sensor(mock_coordinator, "speed")
         assert sensor.native_unit_of_measurement == "mph"
 
-    def test_dynamic_unit_temp_miles(self, mock_coordinator):
+    def test_dynamic_unit_temp_independent_of_distance(self, mock_coordinator):
+        """UK uses miles but Celsius; temp must follow temp_unit, not distance_unit."""
         mock_coordinator.data.distance_unit = "miles"
+        mock_coordinator.data.temp_unit = "c"
+        sensor = make_sensor(mock_coordinator, "cabin_temp")
+        assert sensor.native_unit_of_measurement == "°C"
+
+    def test_dynamic_unit_temp_fahrenheit(self, mock_coordinator):
+        mock_coordinator.data.temp_unit = "f"
         sensor = make_sensor(mock_coordinator, "cabin_temp")
         assert sensor.native_unit_of_measurement == "°F"
 
