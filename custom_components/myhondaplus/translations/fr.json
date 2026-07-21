@@ -88,6 +88,9 @@
     },
     "car_finder_failed": {
       "message": "La demande de localisation du véhicule a échoué : le véhicule n'a pas répondu."
+    },
+    "geofence_location_unknown": {
+      "message": "Position inconnue"
     }
   },
   "entity": {
@@ -227,6 +230,15 @@
       },
       "climate_schedule": {
         "name": "Programmation climatisation"
+      },
+      "geofence": {
+        "name": "Geofence",
+        "state": {
+          "inactive": "Non actif",
+          "active": "Actif",
+          "activating": "Activation (cela peut prendre jusqu'à 2 minutes)",
+          "deactivating": "Désactivation (cela peut prendre jusqu'à 2 minutes)"
+        }
       }
     },
     "device_tracker": {

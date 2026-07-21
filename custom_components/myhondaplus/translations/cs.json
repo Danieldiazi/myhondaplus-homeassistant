@@ -88,6 +88,9 @@
     },
     "car_finder_failed": {
       "message": "Požadavek na vyhledání vozidla selhal: vozidlo neodpovědělo."
+    },
+    "geofence_location_unknown": {
+      "message": "Poloha neznámá"
     }
   },
   "entity": {
@@ -227,6 +230,15 @@
       },
       "climate_schedule": {
         "name": "Plán klimatizace"
+      },
+      "geofence": {
+        "name": "Geofence",
+        "state": {
+          "inactive": "Neaktivní",
+          "active": "Aktivní",
+          "activating": "Aktivace (tato akce může trvat až 2 minuty)",
+          "deactivating": "Deaktivace (tato akce může trvat až 2 minuty)"
+        }
       }
     },
     "device_tracker": {

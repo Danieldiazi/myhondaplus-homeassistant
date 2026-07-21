@@ -88,6 +88,9 @@
     },
     "car_finder_failed": {
       "message": "Car finder request failed: the vehicle did not respond."
+    },
+    "geofence_location_unknown": {
+      "message": "Location unknown"
     }
   },
   "entity": {
@@ -227,6 +230,15 @@
       },
       "climate_schedule": {
         "name": "Climate schedule"
+      },
+      "geofence": {
+        "name": "Geofence",
+        "state": {
+          "inactive": "Not Active",
+          "active": "Active",
+          "activating": "Activating (This can take up to 2 minutes)",
+          "deactivating": "De-Activating (This can take up to 2 minutes)"
+        }
       }
     },
     "device_tracker": {

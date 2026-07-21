@@ -14,6 +14,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from pymyhondaplus.api import (
     CarLocation,
     EVStatus,
+    Geofence,
     HondaAPI,
     HondaAPIError,
     HondaAuthError,
@@ -39,6 +40,7 @@ class DashboardData(EVStatus):
 
     charge_schedule: list[dict] = field(default_factory=list)
     climate_schedule: list[dict] = field(default_factory=list)
+    geofence: Geofence | None = None
 
 
 def _handle_api_error(
@@ -67,11 +69,13 @@ class HondaDataUpdateCoordinator(DataUpdateCoordinator[DashboardData]):
         api: HondaAPI,
         vin: str,
         vehicle_name: str = "",
+        geofence_enabled: bool = False,
     ) -> None:
         self.entry = entry
         self.vin: str = vin
         self._vehicle_name: str = vehicle_name
         self.api = api
+        self.geofence_enabled = geofence_enabled
         self._service_available = True
 
         interval = get_entry_value(entry, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
@@ -99,10 +103,17 @@ class HondaDataUpdateCoordinator(DataUpdateCoordinator[DashboardData]):
         dashboard = self.api.get_dashboard_cached(self.vin)
         ev = parse_ev_status(dashboard)
         ev_values = {f.name: getattr(ev, f.name) for f in fields(ev)}
+        geofence = None
+        if self.geofence_enabled:
+            try:
+                geofence = self.api.get_geofence(self.vin)
+            except (HondaAPIError, ValueError):
+                geofence = None
         return DashboardData(
             **ev_values,
             charge_schedule=parse_charge_schedule(dashboard),
             climate_schedule=parse_climate_schedule(dashboard),
+            geofence=geofence,
         )
 
     def _log_unavailable_once(self, message: str, *args) -> None:

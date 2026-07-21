@@ -48,6 +48,10 @@ ENFORCED_OVERLAPS = {
     "entity.device_tracker.vehicle_location.name": "location_label",
     "entity.binary_sensor.doors_open.name": "doors_label",
     "config.abort.no_vehicles": "no_vehicles",
+    "entity.sensor.geofence.state.inactive": "geofence_state_inactive",
+    "entity.sensor.geofence.state.active": "geofence_state_active",
+    "entity.sensor.geofence.state.activating": "geofence_state_activating",
+    "entity.sensor.geofence.state.deactivating": "geofence_state_deactivating",
 }
 
 # Overlap pairs with pre-existing wording drift between HA integration and

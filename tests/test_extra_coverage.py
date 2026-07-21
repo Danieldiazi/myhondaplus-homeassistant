@@ -74,6 +74,7 @@ from custom_components.myhondaplus.select import (
 from custom_components.myhondaplus.sensor import (
     SENSOR_DESCRIPTIONS,
     TRIP_SENSOR_DESCRIPTIONS,
+    HondaGeofenceSensor,
     HondaSensor,
     HondaTripSensor,
     _resolve_unit,
@@ -337,7 +338,8 @@ class TestPlatformSetupCoverage:
 
         await sensor_setup_entry(None, entry, added.extend)
 
-        assert len(added) == len(SENSOR_DESCRIPTIONS) + len(TRIP_SENSOR_DESCRIPTIONS)
+        # SENSOR_DESCRIPTIONS + TRIP_SENSOR_DESCRIPTIONS + geofence sensor
+        assert len(added) == len(SENSOR_DESCRIPTIONS) + len(TRIP_SENSOR_DESCRIPTIONS) + 1
 
     @pytest.mark.asyncio
     async def test_sensor_platform_setup_entry_phev(self):
@@ -353,7 +355,8 @@ class TestPlatformSetupCoverage:
 
         await sensor_setup_entry(None, entry, added.extend)
 
-        assert len(added) == len(SENSOR_DESCRIPTIONS) + len(TRIP_SENSOR_DESCRIPTIONS)
+        # SENSOR_DESCRIPTIONS + TRIP_SENSOR_DESCRIPTIONS + geofence sensor
+        assert len(added) == len(SENSOR_DESCRIPTIONS) + len(TRIP_SENSOR_DESCRIPTIONS) + 1
 
     @pytest.mark.asyncio
     async def test_sensor_platform_setup_entry_ice_hides_ev_only(self):
@@ -370,8 +373,9 @@ class TestPlatformSetupCoverage:
         await sensor_setup_entry(None, entry, added.extend)
 
         ev_only_count = sum(1 for d in SENSOR_DESCRIPTIONS if d.ev_only)
+        # SENSOR_DESCRIPTIONS - ev_only + TRIP_SENSOR_DESCRIPTIONS + geofence sensor
         assert len(added) == (
-            len(SENSOR_DESCRIPTIONS) - ev_only_count + len(TRIP_SENSOR_DESCRIPTIONS)
+            len(SENSOR_DESCRIPTIONS) - ev_only_count + len(TRIP_SENSOR_DESCRIPTIONS) + 1
         )
         added_keys = {e.entity_description.key for e in added}
         assert "battery_level" not in added_keys
@@ -834,6 +838,7 @@ class TestCoordinatorCoveragePart2:
         coord = HondaDataUpdateCoordinator.__new__(HondaDataUpdateCoordinator)
         coord.vin = MOCK_VIN
         coord.api = MagicMock()
+        coord.geofence_enabled = False
         mock_ev = EVStatus(battery_level=42)
         with (
             patch(
@@ -1308,3 +1313,66 @@ class TestConfigFlowDeviceRegistrationError:
             "password": "password",
         })
         assert result["errors"]["base"] == "cannot_connect"
+
+
+class TestGeofenceSensor:
+    """Tests for the geofence diagnostic sensor."""
+
+    def _make_sensor(self, mock_coordinator):
+        sensor = HondaGeofenceSensor(
+            mock_coordinator, MOCK_VIN, MOCK_VEHICLE_NAME, "E"
+        )
+        sensor.hass = MagicMock()
+        return sensor
+
+    def test_inactive_when_no_geofence(self, mock_coordinator):
+        mock_coordinator.data = replace(MOCK_DASHBOARD_DATA, geofence=None)
+        sensor = self._make_sensor(mock_coordinator)
+        assert sensor.native_value == "inactive"
+        assert sensor.extra_state_attributes is None
+
+    def test_active_geofence(self, mock_coordinator):
+        from pymyhondaplus.api import Geofence
+
+        gf = Geofence(active=True, name="Home", latitude=45.0, longitude=9.0, radius=1.5)
+        mock_coordinator.data = replace(MOCK_DASHBOARD_DATA, geofence=gf)
+        sensor = self._make_sensor(mock_coordinator)
+        assert sensor.native_value == "active"
+        attrs = sensor.extra_state_attributes
+        assert attrs["name"] == "Home"
+        assert attrs["latitude"] == 45.0
+        assert attrs["longitude"] == 9.0
+        assert attrs["radius"] == 1.5
+        assert attrs["radius_unit"] == "km"
+
+    def test_activating_geofence(self, mock_coordinator):
+        from pymyhondaplus.api import Geofence
+
+        gf = Geofence(active=False, waiting_activate=True, name="Work")
+        mock_coordinator.data = replace(MOCK_DASHBOARD_DATA, geofence=gf)
+        sensor = self._make_sensor(mock_coordinator)
+        assert sensor.native_value == "activating"
+
+    def test_deactivating_geofence(self, mock_coordinator):
+        from pymyhondaplus.api import Geofence
+
+        gf = Geofence(active=True, waiting_deactivate=True, name="Work")
+        mock_coordinator.data = replace(MOCK_DASHBOARD_DATA, geofence=gf)
+        sensor = self._make_sensor(mock_coordinator)
+        assert sensor.native_value == "deactivating"
+
+    def test_inactive_geofence_object(self, mock_coordinator):
+        from pymyhondaplus.api import Geofence
+
+        gf = Geofence(active=False, name="Old")
+        mock_coordinator.data = replace(MOCK_DASHBOARD_DATA, geofence=gf)
+        sensor = self._make_sensor(mock_coordinator)
+        assert sensor.native_value == "inactive"
+
+    def test_options_and_device_class(self, mock_coordinator):
+        mock_coordinator.data = replace(MOCK_DASHBOARD_DATA, geofence=None)
+        sensor = self._make_sensor(mock_coordinator)
+        assert sensor.options == [
+            "inactive", "active", "activating", "deactivating",
+        ]
+        assert sensor.device_class.value == "enum"

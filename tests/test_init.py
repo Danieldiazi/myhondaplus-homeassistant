@@ -10,10 +10,12 @@ from homeassistant.exceptions import ServiceValidationError
 from custom_components.myhondaplus import (
     ATTR_DEVICE,
     SERVICE_CAR_FINDER_LOCATION,
+    SERVICE_CLEAR_GEOFENCE,
     SERVICE_CLIMATE_ON,
     SERVICE_CLIMATE_ON_SCHEMA,
     SERVICE_SET_CHARGE_SCHEDULE,
     SERVICE_SET_CLIMATE_SCHEDULE,
+    SERVICE_SET_GEOFENCE,
     _consolidate_duplicate_entries,
     _get_coordinator,
     _register_services,
@@ -83,11 +85,11 @@ class TestRegisterServices:
     @pytest.mark.asyncio
     async def test_async_setup_registers_services(self, mock_hass_with_services):
         assert await async_setup(mock_hass_with_services, {}) is True
-        assert mock_hass_with_services.services.async_register.call_count == 4
+        assert mock_hass_with_services.services.async_register.call_count == 6
 
-    def test_registers_four_services(self, mock_hass_with_services):
+    def test_registers_six_services(self, mock_hass_with_services):
         _register_services(mock_hass_with_services)
-        assert mock_hass_with_services.services.async_register.call_count == 4
+        assert mock_hass_with_services.services.async_register.call_count == 6
 
         registered = {
             call[0][1]
@@ -98,6 +100,8 @@ class TestRegisterServices:
             SERVICE_SET_CLIMATE_SCHEDULE,
             SERVICE_CLIMATE_ON,
             SERVICE_CAR_FINDER_LOCATION,
+            SERVICE_SET_GEOFENCE,
+            SERVICE_CLEAR_GEOFENCE,
         }
 
     def test_idempotent_registration(self, mock_hass_with_services):
@@ -105,8 +109,8 @@ class TestRegisterServices:
         _register_services(mock_hass_with_services)
         mock_hass_with_services.services.has_service.return_value = True
         _register_services(mock_hass_with_services)
-        # Still only 4 calls from the first registration
-        assert mock_hass_with_services.services.async_register.call_count == 4
+        # Still only 6 calls from the first registration
+        assert mock_hass_with_services.services.async_register.call_count == 6
 
 
 class TestMigration:
@@ -729,3 +733,310 @@ class TestServiceHandlers:
             await handlers[SERVICE_SET_CLIMATE_SCHEDULE](call)
 
         get_coordinator.assert_called_once_with(mock_hass_with_services, call)
+
+
+class TestGeofenceServiceHandlers:
+    """Tests for set_geofence and clear_geofence service handlers."""
+
+    def _handlers(self, mock_hass_with_services):
+        _register_services(mock_hass_with_services)
+        return {
+            call[0][1]: call[0][2]
+            for call in mock_hass_with_services.services.async_register.call_args_list
+        }
+
+    @pytest.mark.asyncio
+    async def test_set_geofence_centers_on_car(
+        self, mock_hass_with_services, mock_coordinator
+    ):
+        from pymyhondaplus.api import Geofence
+
+        mock_coordinator.geofence_enabled = True
+        result_gf = Geofence(
+            active=False, waiting_activate=True, name="Geofence",
+            latitude=45.0, longitude=9.0, radius=5.0,
+        )
+        mock_coordinator.async_send_command = AsyncMock(return_value=result_gf)
+
+        handlers = self._handlers(mock_hass_with_services)
+        with patch(
+            "custom_components.myhondaplus._get_coordinator",
+            return_value=mock_coordinator,
+        ), patch(
+            "custom_components.myhondaplus.async_call_later"
+        ) as mock_call_later:
+            call = MagicMock()
+            call.data = {"radius": "5 km"}
+            await handlers[SERVICE_SET_GEOFENCE](call)
+
+        mock_coordinator.async_send_command.assert_awaited_once()
+        send_args = mock_coordinator.async_send_command.call_args[0]
+        assert send_args[0] is mock_coordinator.api.set_geofence
+        assert send_args[1] == mock_coordinator.vin
+        assert send_args[2] == 45.0  # car latitude, from the dashboard
+        assert send_args[3] == 9.0   # car longitude
+        assert send_args[4] == 5.0   # 5 km preset
+        assert send_args[5] == "Geofence"  # fixed name
+        mock_coordinator.async_set_updated_data.assert_called_once()
+        # Three follow-up refreshes scheduled
+        assert mock_call_later.call_count == 3
+        delays = sorted(c.args[1] for c in mock_call_later.call_args_list)
+        assert delays == [30, 90, 240]
+
+    @pytest.mark.asyncio
+    async def test_set_geofence_miles_preset_converts_to_km(
+        self, mock_hass_with_services, mock_coordinator
+    ):
+        from pymyhondaplus.api import Geofence
+
+        mock_coordinator.geofence_enabled = True
+        mock_coordinator.async_send_command = AsyncMock(
+            return_value=Geofence(active=False, waiting_activate=True)
+        )
+
+        handlers = self._handlers(mock_hass_with_services)
+        with patch(
+            "custom_components.myhondaplus._get_coordinator",
+            return_value=mock_coordinator,
+        ), patch("custom_components.myhondaplus.async_call_later"):
+            call = MagicMock()
+            call.data = {"radius": "10 mi"}
+            await handlers[SERVICE_SET_GEOFENCE](call)
+
+        send_args = mock_coordinator.async_send_command.call_args[0]
+        # 10 mi -> 16.09344 km -> 16.1 km preset
+        assert send_args[4] == 16.1
+
+    @pytest.mark.asyncio
+    async def test_set_geofence_defaults_to_1km(
+        self, mock_hass_with_services, mock_coordinator
+    ):
+        from pymyhondaplus.api import Geofence
+
+        mock_coordinator.geofence_enabled = True
+        mock_coordinator.async_send_command = AsyncMock(
+            return_value=Geofence(active=False, waiting_activate=True)
+        )
+
+        handlers = self._handlers(mock_hass_with_services)
+        with patch(
+            "custom_components.myhondaplus._get_coordinator",
+            return_value=mock_coordinator,
+        ), patch("custom_components.myhondaplus.async_call_later"):
+            call = MagicMock()
+            call.data = {}  # radius omitted -> handler default "1 km"
+            await handlers[SERVICE_SET_GEOFENCE](call)
+
+        send_args = mock_coordinator.async_send_command.call_args[0]
+        assert send_args[4] == 1.0
+
+    @pytest.mark.asyncio
+    async def test_set_geofence_location_unknown_raises(
+        self, mock_hass_with_services, mock_coordinator
+    ):
+        from dataclasses import replace
+
+        mock_coordinator.geofence_enabled = True
+        # Null-island / missing GPS: latitude and longitude are 0.
+        mock_coordinator.data = replace(
+            mock_coordinator.data, latitude=0.0, longitude=0.0
+        )
+
+        handlers = self._handlers(mock_hass_with_services)
+        with patch(
+            "custom_components.myhondaplus._get_coordinator",
+            return_value=mock_coordinator,
+        ), pytest.raises(ServiceValidationError) as exc_info:
+            call = MagicMock()
+            call.data = {"radius": "5 km"}
+            await handlers[SERVICE_SET_GEOFENCE](call)
+
+        assert exc_info.value.translation_key == "geofence_location_unknown"
+        mock_coordinator.async_send_command.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_set_geofence_capability_disabled_raises(
+        self, mock_hass_with_services, mock_coordinator
+    ):
+        mock_coordinator.geofence_enabled = False
+
+        handlers = self._handlers(mock_hass_with_services)
+        with patch(
+            "custom_components.myhondaplus._get_coordinator",
+            return_value=mock_coordinator,
+        ), pytest.raises(ServiceValidationError):
+            call = MagicMock()
+            call.data = {"radius": "5 km"}
+            await handlers[SERVICE_SET_GEOFENCE](call)
+
+        mock_coordinator.async_send_command.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_clear_geofence_happy_path(
+        self, mock_hass_with_services, mock_coordinator
+    ):
+        from dataclasses import replace
+
+        from pymyhondaplus.api import Geofence
+
+        mock_coordinator.geofence_enabled = True
+        existing = Geofence(active=True, name="Home", latitude=1.0, longitude=2.0)
+        mock_coordinator.data = replace(mock_coordinator.data, geofence=existing)
+        mock_coordinator.async_send_command = AsyncMock(return_value="cmd-id")
+
+        handlers = self._handlers(mock_hass_with_services)
+        with patch(
+            "custom_components.myhondaplus._get_coordinator",
+            return_value=mock_coordinator,
+        ), patch(
+            "custom_components.myhondaplus.async_call_later"
+        ) as mock_call_later:
+            call = MagicMock()
+            call.data = {}
+            await handlers[SERVICE_CLEAR_GEOFENCE](call)
+
+        mock_coordinator.async_send_command.assert_awaited_once()
+        assert mock_coordinator.async_send_command.call_args[0][0] is (
+            mock_coordinator.api.clear_geofence
+        )
+        # Optimistic state: existing geofence with waiting_deactivate=True
+        mock_coordinator.async_set_updated_data.assert_called_once()
+        updated = mock_coordinator.async_set_updated_data.call_args[0][0]
+        assert updated.geofence.waiting_deactivate is True
+        assert updated.geofence.name == "Home"
+        # 3 refreshes scheduled
+        assert mock_call_later.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_clear_geofence_no_existing_geofence(
+        self, mock_hass_with_services, mock_coordinator
+    ):
+        from dataclasses import replace
+
+        mock_coordinator.geofence_enabled = True
+        mock_coordinator.data = replace(mock_coordinator.data, geofence=None)
+        mock_coordinator.async_send_command = AsyncMock(return_value="cmd-id")
+
+        handlers = self._handlers(mock_hass_with_services)
+        with patch(
+            "custom_components.myhondaplus._get_coordinator",
+            return_value=mock_coordinator,
+        ), patch("custom_components.myhondaplus.async_call_later"):
+            call = MagicMock()
+            call.data = {}
+            await handlers[SERVICE_CLEAR_GEOFENCE](call)
+
+        mock_coordinator.async_send_command.assert_awaited_once()
+        # No optimistic update when there was no existing geofence
+        mock_coordinator.async_set_updated_data.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_clear_geofence_capability_disabled_raises(
+        self, mock_hass_with_services, mock_coordinator
+    ):
+        mock_coordinator.geofence_enabled = False
+
+        handlers = self._handlers(mock_hass_with_services)
+        with patch(
+            "custom_components.myhondaplus._get_coordinator",
+            return_value=mock_coordinator,
+        ), pytest.raises(ServiceValidationError):
+            call = MagicMock()
+            call.data = {}
+            await handlers[SERVICE_CLEAR_GEOFENCE](call)
+
+        mock_coordinator.async_send_command.assert_not_called()
+
+
+class TestCoordinatorGeofenceGate:
+    """Coordinator skips get_geofence when the capability is disabled."""
+
+    def test_fetch_data_skips_geofence_when_disabled(self):
+        from custom_components.myhondaplus.coordinator import (
+            DashboardData,
+            HondaDataUpdateCoordinator,
+        )
+
+        coord = HondaDataUpdateCoordinator.__new__(HondaDataUpdateCoordinator)
+        coord.vin = MOCK_VIN
+        coord.api = MagicMock()
+        coord.geofence_enabled = False
+        coord.api.get_dashboard_cached.return_value = {"dash": 1}
+
+        with patch(
+            "custom_components.myhondaplus.coordinator.parse_ev_status",
+            return_value=MagicMock(_dataclass_fields=()),
+        ) as mock_parse, patch(
+            "custom_components.myhondaplus.coordinator.parse_charge_schedule",
+            return_value=[],
+        ), patch(
+            "custom_components.myhondaplus.coordinator.parse_climate_schedule",
+            return_value=[],
+        ):
+            # Build a real EVStatus via parse_ev_status mock returning EVStatus()
+            from pymyhondaplus.api import EVStatus
+
+            mock_parse.return_value = EVStatus()
+            result = HondaDataUpdateCoordinator._fetch_data(coord)
+
+        assert isinstance(result, DashboardData)
+        assert result.geofence is None
+        coord.api.get_geofence.assert_not_called()
+
+    def test_fetch_data_calls_geofence_when_enabled(self):
+        from pymyhondaplus.api import EVStatus, Geofence
+
+        from custom_components.myhondaplus.coordinator import (
+            HondaDataUpdateCoordinator,
+        )
+
+        coord = HondaDataUpdateCoordinator.__new__(HondaDataUpdateCoordinator)
+        coord.vin = MOCK_VIN
+        coord.api = MagicMock()
+        coord.geofence_enabled = True
+        coord.api.get_dashboard_cached.return_value = {"dash": 1}
+        coord.api.get_geofence.return_value = Geofence(active=True, name="X")
+
+        with patch(
+            "custom_components.myhondaplus.coordinator.parse_ev_status",
+            return_value=EVStatus(),
+        ), patch(
+            "custom_components.myhondaplus.coordinator.parse_charge_schedule",
+            return_value=[],
+        ), patch(
+            "custom_components.myhondaplus.coordinator.parse_climate_schedule",
+            return_value=[],
+        ):
+            result = HondaDataUpdateCoordinator._fetch_data(coord)
+
+        coord.api.get_geofence.assert_called_once_with(MOCK_VIN)
+        assert result.geofence.active is True
+        assert result.geofence.name == "X"
+
+    def test_fetch_data_geofence_api_error_swallowed(self):
+        from pymyhondaplus.api import EVStatus, HondaAPIError
+
+        from custom_components.myhondaplus.coordinator import (
+            HondaDataUpdateCoordinator,
+        )
+
+        coord = HondaDataUpdateCoordinator.__new__(HondaDataUpdateCoordinator)
+        coord.vin = MOCK_VIN
+        coord.api = MagicMock()
+        coord.geofence_enabled = True
+        coord.api.get_dashboard_cached.return_value = {"dash": 1}
+        coord.api.get_geofence.side_effect = HondaAPIError(500, "boom")
+
+        with patch(
+            "custom_components.myhondaplus.coordinator.parse_ev_status",
+            return_value=EVStatus(),
+        ), patch(
+            "custom_components.myhondaplus.coordinator.parse_charge_schedule",
+            return_value=[],
+        ), patch(
+            "custom_components.myhondaplus.coordinator.parse_climate_schedule",
+            return_value=[],
+        ):
+            result = HondaDataUpdateCoordinator._fetch_data(coord)
+
+        assert result.geofence is None

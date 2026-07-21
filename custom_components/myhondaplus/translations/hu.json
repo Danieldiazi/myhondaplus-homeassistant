@@ -88,6 +88,9 @@
     },
     "car_finder_failed": {
       "message": "Az autókereső kérés sikertelen: a jármű nem válaszolt."
+    },
+    "geofence_location_unknown": {
+      "message": "Helyzet ismeretlen"
     }
   },
   "entity": {
@@ -227,6 +230,15 @@
       },
       "climate_schedule": {
         "name": "Klíma ütemezés"
+      },
+      "geofence": {
+        "name": "Geofence",
+        "state": {
+          "inactive": "Nem aktív",
+          "active": "Aktív",
+          "activating": "Aktiválás (ez akár 2 percig is eltarthat)",
+          "deactivating": "Kikapcsolás (ez akár 2 percig is eltarthat)"
+        }
       }
     },
     "device_tracker": {

@@ -291,6 +291,10 @@ async def async_setup_entry(
                 HondaTripSensor(vehicle.trip_coordinator, desc, vin, name, fuel_type)
                 for desc in TRIP_SENSOR_DESCRIPTIONS
             )
+        if vehicle.capabilities.geo_fence:
+            entities.append(
+                HondaGeofenceSensor(vehicle.coordinator, vin, name, fuel_type)
+            )
     async_add_entities(entities)
 
 
@@ -373,3 +377,51 @@ class HondaTripSensor(MyHondaPlusEntity, SensorEntity):
         if self.entity_description.key == "avg_consumption" and self.coordinator.data:
             return self.coordinator.data.get("consumption_unit")
         return _resolve_unit(self.coordinator.data, self.entity_description)
+
+
+GEOFENCE_STATES = ["inactive", "active", "activating", "deactivating"]
+
+
+class HondaGeofenceSensor(MyHondaPlusEntity, SensorEntity):
+    """My Honda+ geofence status sensor."""
+
+    _attr_icon = "mdi:map-marker-radius"
+    _attr_translation_key = "geofence"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = GEOFENCE_STATES
+
+    def __init__(
+        self, coordinator, vin: str, vehicle_name: str, fuel_type: str = ""
+    ) -> None:
+        description = SensorEntityDescription(
+            key="geofence",
+            translation_key="geofence",
+            device_class=SensorDeviceClass.ENUM,
+            options=GEOFENCE_STATES,
+        )
+        super().__init__(coordinator, description, vin, vehicle_name, fuel_type)
+
+    @property
+    def native_value(self) -> str:
+        gf = self.coordinator.data.geofence
+        if gf is None:
+            return "inactive"
+        if gf.waiting_activate:
+            return "activating"
+        if gf.waiting_deactivate:
+            return "deactivating"
+        return "active" if gf.active else "inactive"
+
+    @property
+    def extra_state_attributes(self) -> dict | None:
+        gf = self.coordinator.data.geofence
+        if gf is None:
+            return None
+        return {
+            "name": gf.name,
+            "latitude": gf.latitude,
+            "longitude": gf.longitude,
+            "radius": gf.radius,
+            "radius_unit": "km",
+        }

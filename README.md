@@ -101,6 +101,7 @@ Remote commands update the entity state only after the car confirms success. The
 - **Other**: Warning lamps, Last updated
 - **Trips**: Trips this month, Distance this month, Driving time this month, Avg consumption this month
 - **Schedules**: Charge schedule (active rules count + full rules in attributes), Climate schedule (active rules count + full rules in attributes)
+- **Geofence**: Geofence status (state, plus centre/radius/name in attributes)
 
 ### Binary Sensors
 - **Doors** — open/closed
@@ -197,6 +198,31 @@ response_variable: fix
 ```
 
 The response object has `latitude`, `longitude`, `dtTime` (the real TCU fix-time), `speed`, `speed_unit` (`km/h`), `courseHeading`, and `ignition`.
+
+### `myhondaplus.set_geofence`
+
+Create or update the geofence, centred on the car's current location (from the dashboard), matching the official app. Pick a radius preset in kilometres or miles; miles are converted to kilometres before sending. The name is fixed to "Geofence".
+
+The geofence sensor moves to `activating`, then `active` once Honda confirms (this can take a couple of minutes). If the dashboard has no GPS fix, the call fails with "Location unknown".
+
+```yaml
+service: myhondaplus.set_geofence
+data:
+  device: "<vehicle_device_id>"
+  radius: "5 km"
+```
+
+`radius` is one of `1 km`, `5 km`, `10 km`, `20 km`, `30 km`, `0.5 mi`, `1 mi`, `5 mi`, `10 mi`, `20 mi` (default `1 km`). It is always stored in kilometres, so a miles preset is reported converted (for example `10 mi` becomes `16.1`).
+
+### `myhondaplus.clear_geofence`
+
+Delete the geofence. The geofence sensor moves to `deactivating`, then `inactive`.
+
+```yaml
+service: myhondaplus.clear_geofence
+data:
+  device: "<vehicle_device_id>"
+```
 
 ## Troubleshooting
 

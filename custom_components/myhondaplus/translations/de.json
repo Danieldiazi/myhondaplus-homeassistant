@@ -88,6 +88,9 @@
     },
     "car_finder_failed": {
       "message": "Fahrzeugortung fehlgeschlagen: Das Fahrzeug hat nicht geantwortet."
+    },
+    "geofence_location_unknown": {
+      "message": "Standort unbekannt"
     }
   },
   "entity": {
@@ -227,6 +230,15 @@
       },
       "climate_schedule": {
         "name": "Klimasteuerung Programmierung"
+      },
+      "geofence": {
+        "name": "Geofence",
+        "state": {
+          "inactive": "Nicht aktiv",
+          "active": "Aktiv",
+          "activating": "Aktivierung (dies kann bis zu zwei Minuten dauern)",
+          "deactivating": "Deaktivierung (dies kann bis zu zwei Minuten dauern)"
+        }
       }
     },
     "device_tracker": {
