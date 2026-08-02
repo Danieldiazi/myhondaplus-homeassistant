@@ -13,7 +13,7 @@ jobs:
     outputs:
       code_changed: ${{ steps.filter.outputs.code_changed }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -52,5 +52,10 @@ jobs:
     if: needs.changes.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/ruff-action@v3
+        with:
+          # The action falls back to the newest ruff when no version is given
+          # and pyproject.toml declares none, so a new minor can add rules to
+          # the E/UP/B families and fail lint on unchanged code.
+          version: "0.16.1"
