@@ -1,0 +1,14 @@
+version: 2
+
+updates:
+  # Only github-actions here. There is no pip manifest to watch: pyproject.toml
+  # carries pytest settings and nothing else, and the test dependencies are
+  # installed inline in the workflow, which Dependabot does not parse.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
