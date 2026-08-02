@@ -57,6 +57,10 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install dependencies
-        run: pip install homeassistant pymyhondaplus pytest pytest-asyncio pytest-cov
+        # homeassistant and pymyhondaplus stay unpinned on purpose: this is an
+        # integration, so a break against the current release is real news, not
+        # a false alarm. The test harness is gated at the major instead, since
+        # there a new release breaks our test code and tells us nothing.
+        run: pip install homeassistant pymyhondaplus "pytest<10" "pytest-asyncio<2" "pytest-cov<8"
       - name: Run tests with coverage gate
         run: pytest tests/ -v --cov=custom_components/myhondaplus --cov-report=term-missing --cov-fail-under=95
