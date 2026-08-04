@@ -33,7 +33,7 @@ This project is **unofficial** and **not affiliated with, endorsed by, or connec
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=enricobattocchi&repository=myhondaplus-homeassistant&category=integration)
 
-1. Click the button above, or search for "My Honda+" in HACS under Integrations
+1. Click the button above to open this repository in HACS
 2. Install "My Honda+"
 3. Restart Home Assistant
 4. Add the integration via Settings > Integrations > Add Integration > "My Honda+"
