@@ -45,7 +45,7 @@ HACS will track updates automatically, making it easy to upgrade.
 <details>
 <summary>More details</summary>
 
-1. Download the `myhondaplus.zip` from the [latest release](https://github.com/enricobattocchi/myhondaplus-homeassistant/releases/latest)
+1. Download the source code zip from the [latest release](https://github.com/enricobattocchi/myhondaplus-homeassistant/releases/latest)
 2. Extract the `custom_components/myhondaplus` folder into your Home Assistant `config/custom_components/` directory
 3. Restart Home Assistant
 4. Add the integration via Settings > Integrations > Add Integration > "My Honda+"
